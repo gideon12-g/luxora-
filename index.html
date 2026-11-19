@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>LUXORA</title>
+<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<style>
+body{background:#0a0a1a;color:#fff;font-family:Arial;margin:0}
+.card{background:#1a1a33;border-radius:12px;padding:16px;margin:12px}
+input,select,textarea{width:100%;padding:13px;margin:6px 0;background:#22224d;color:#fff;border:1px solid #444;border-radius:8px;box-sizing:border-box}
+button{width:100%;padding:14px;background:#FFD700;border:none;border-radius:8px;font-weight:900;font-size:16px}
+.small{background:#FFD700;color:#000;border:none;padding:8px 12px;border-radius:6px;font-weight:700;width:auto}
+.green{background:#25D366;color:#fff;border:none;padding:8px 12px;border-radius:6px;font-weight:700;width:auto}
+.filterBtn{background:#333;color:#fff;border:none;padding:8px 12px;border-radius:20px;font-weight:700;width:auto;margin:2px}
+.filterBtn.active{background:#FFD700;color:#000}
+.hidden{display:none!important}
+.box{position:relative}
+.box span{position:absolute;right:12px;top:18px;font-size:20px;z-index:5}
+#topbar{display:flex;justify-content:space-between;padding:12px;background:#111133}
+#menu{position:fixed;left:-260px;top:0;width:240px;height:100%;background:#111133;z-index:99;padding:16px;transition:.3s;overflow-y:auto}
+#menu.open{left:0}
+#menu div{padding:13px;border-bottom:1px solid #222}
+#toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#FFD700;color:#000;padding:12px 16px;border-radius:8px;font-weight:700;z-index:200;display:none;max-width:90%;text-align:center}
+</style>
+</head>
+<body>
+<div id="toast"></div>
+<div id="topbar" class="hidden">
+<span onclick="togMenu()" style="font-size:22px">☰</span>
+<b>LUXORA</b>
+<span id="topName"></span>
+</div>
+<div id="menu">
+<h3>LUXORA</h3>
+<div onclick="go('dash');togMenu()">Dashboard</div>
+<div onclick="go('sales');togMenu()">Record Sale</div>
+<div onclick="go('rec');togMenu()">Records</div>
+<div onclick="go('inv');togMenu()">Inventory</div>
+<div onclick="go('debt');togMenu()">Debtors</div>
+<div onclick="go('scan');togMenu()">Barcode Scanner</div>
+<div onclick="go('shop');togMenu()">Shop Owner</div>
+<div onclick="go('guide');togMenu()">Guide</div>
+<div onclick="go('about');togMenu()">About Luxora</div>
+<div id="adminMenu" class="hidden" onclick="go('admin');togMenu()" style="color:#FFD700">Admin Dashboard</div>
+<div onclick="logout()" style="color:#ff5555">Logout</div>
+<div onclick="togMenu()">Close</div>
+</div>
+<div id="auth">
+<div style="text-align:center;padding:20px">
+<h1 style="color:#FFD700;margin:0">LUXORA</h1>
+<p>SALES MANAGER</p>
+</div>
+<div class="card" id="signBox">
+<h2>Create Account</h2>
+<input id="suName" placeholder="Full Name" autocomplete="name">
+<input id="suEmail" placeholder="Email" autocomplete="email">
+<div class="box">
+<input id="suPass" type="password" placeholder="Password" autocomplete="new-password">
+<span onclick="eye('suPass',this)">👁️</span>
+</div>
+<div class="box">
+<input id="suPass2" type="password" placeholder="Confirm Password" autocomplete="new-password">
+<span onclick="eye('suPass2',this)">👁️</span>
+</div>
+<button onclick="doSignup()">SIGN UP</button>
+<p id="msgBox" style="text-align:center;color:#ff8888;font-weight:700"></p>
+<p style="text-align:center" onclick="showLogin()">Already have account? Login</p>
+</div>
+<div class="card hidden" id="loginBox">
+<h2>Login</h2>
+<input id="liEmail" placeholder="Email" autocomplete="email">
+<div class="box">
+<input id="liPass" type="password" placeholder="Password" autocomplete="current-password">
+<span onclick="eye('liPass',this)">👁️</span>
+</div>
+<button onclick="doLogin()">LOGIN</button>
+<p id="loginMsg" style="text-align:center;color:#ff8888;font-weight:700"></p>
+<p style="text-align:center" onclick="showSignup()">No account? Sign Up</p>
+</div>
+</div>
+<div id="app" class="hidden">
+<div id="pg-dash">
+<div style="text-align:center"><h1 style="color:#FFD700">LUXORA</h1></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px">
+<div class="card" style="margin:0;text-align:center">TODAY SALES<br><b id="dSales">₦0</b></div>
+<div class="card" style="margin:0;text-align:center">TODAY PROFIT<br><b id="dProfit">₦0</b></div>
+<div class="card" style="margin:0;text-align:center">STOCK<br><b id="dStock">0 items</b></div>
+<div class="card" style="margin:0;text-align:center">PLAN<br><b>Free</b></div>
+</div>
+<div class="card"><h3>RECENT SALES</h3><div id="dashSales">No sales yet</div></div>
+<div class="card"><h3>PEOPLE OWING</h3><div id="dashDebts">No debt - Good!</div></div>
+<div class="card"><button style="background:#fff;color:#000" onclick="copySummary()">Copy Today Summary</button></div>
+</div>
+<div id="pg-sales" class="hidden">
+<div class="card">
+<h2>RECORD SALE</h2>
+<input id="sProduct" placeholder="Product e.g Beans" autocomplete="off" name="luxora_product">
+<input id="sAmount" type="number" placeholder="Amount e.g 600" autocomplete="off" name="luxora_amount">
+<input id="sCustomer" placeholder="Customer Name" autocomplete="off" name="luxora_customer">
+<input id="sPhone" placeholder="Customer WhatsApp e.g 08030000000" autocomplete="off" name="luxora_phone" inputmode="tel">
+<select id="sMethod"><option>Cash</option><option>Transfer</option><option>Debt</option></select>
+<input id="sProfit" type="number" placeholder="Profit (optional)" autocomplete="off" name="luxora_profit">
+<button onclick="doSale()">RECORD SALE - AUTO RECEIPT</button>
+</div>
+<div class="card" id="receiptBox">
+<h3>Auto Receipt - Shows After Every Sale</h3>
+<p id="lastReceipt">Receipt will appear here after you tap RECORD SALE</p>
+<button style="background:#25D366;color:#fff" onclick="sendReceipt()">Send Receipt On WhatsApp</button>
+<button style="background:#fff;color:#000;margin-top:8px" onclick="copyReceipt()">Copy Receipt</button>
+</div>
+</div>
+<div id="pg-rec" class="hidden">
+<div class="card"><h2>RECORDS</h2>
+<div style="margin-bottom:10px">
+<button class="filterBtn active" id="fAll" onclick="setRecFilter('all')">All Time</button>
+<button class="filterBtn" id="fToday" onclick="setRecFilter('today')">Today</button>
+<button class="filterBtn" id="fYesterday" onclick="setRecFilter('yesterday')">Yesterday</button>
+<button class="filterBtn" id="fWeek" onclick="setRecFilter('week')">This Week</button>
+<button class="filterBtn" id="fMonth" onclick="setRecFilter('month')">This Month</button>
+<button class="filterBtn" id="fYear" onclick="setRecFilter('year')">This Year</button>
+</div>
+<div id="recList">No records</div></div>
+</div>
+<div id="pg-inv" class="hidden">
+<div class="card">
+<h2>INVENTORY</h2>
+<input id="iName" placeholder="Product Name e.g Rice" autocomplete="off">
+<input id="iCost" type="number" placeholder="Cost Price e.g 400" autocomplete="off">
+<input id="iSell" type="number" placeholder="Selling Price e.g 500" autocomplete="off">
+<input id="iQty" type="number" placeholder="QTY e.g 10" autocomplete="off">
+<input id="iBarcode" placeholder="Barcode (optional)" autocomplete="off">
+<button onclick="addInv()">ADD TO INVENTORY</button>
+<div id="invList" style="margin-top:12px"></div>
+</div>
+</div>
+<div id="pg-debt" class="hidden">
+<div class="card"><h2>DEBTORS - AUTO DEBT REMINDER</h2><p>Tap Send to open that person's WhatsApp. You can edit the message first.</p><div id="debtList">No debts</div></div>
+</div>
+<div id="pg-scan" class="hidden">
+<div class="card">
+<h2>Barcode Scanner</h2>
+<button onclick="startScan()">START SCANNER</button>
+<button style="background:#333;margin-top:8px" onclick="stopScan()">STOP</button>
+<div id="reader" style="width:100%;margin-top:12px"></div>
+<div id="scanResult" style="margin-top:12px;font-weight:900;color:#FFD700;text-align:center"></div>
+<div id="scanHint"></div>
+</div>
+</div>
+<div id="pg-shop" class="hidden">
+<div class="card">
+<h2>Shop Owner</h2>
+<p style="color:#00FF88">OPEN - No Payment, No Lock</p>
+<input id="shName" placeholder="Shop Name" autocomplete="off">
+<input id="shPhone" placeholder="Shop Phone" autocomplete="off">
+<input id="shAddr" placeholder="Shop Address" autocomplete="off">
+<button onclick="saveShop()">SAVE SHOP</button>
+<div style="margin-top:10px;background:#22224d;padding:10px;border-radius:8px">
+Auto Receipt<br>Auto Profit<br>Auto Debt Reminder<br>Auto Low Stock<br>Auto Debt Aging - Owing for X days
+</div>
+<button style="background:#fff;color:#000;margin-top:10px" onclick="testShop()">TEST SHOP OWNER AUTOMATION</button>
+<div id="testResult"></div>
+</div>
+</div>
+<div id="pg-guide" class="hidden">
+<div class="card">
+<h2>Guide</h2>
+<p><b>1. Record Sale:</b> Product + Amount + Customer, tap Record. Receipt shows, tap Send to WhatsApp.</p>
+<p><b>2. Inventory:</b> Add Product + Cost + Sell. Profit shows automatically. Tap Sell to sell fast.</p>
+<p><b>3. Debtors:</b> Method = Debt. Person appears in Debtors with Owing for X days. Edit message, tap Send.</p>
+<p><b>4. Barcode:</b> Tap Scanner, point camera, it beeps, shows code, tap Use This Code.</p>
+<p><b>5. Shop Owner:</b> Save Shop Name. Receipt will come from that shop name.</p>
+<p><b>6. Admin:</b> Only you see it. It shows EVERYONE who signed up.</p>
+</div>
+</div>
+<div id="pg-about" class="hidden">
+<div class="card">
+<h2 style="color:#FFD700">About Luxora</h2>
+<p style="color:#FFD700;font-weight:700">Created &amp; Hosted by Gideon Uvomata</p>
+<p>LUXORA Sales Manager was created by <b style="color:#FFD700">Gideon Uvomata</b> to help small business owners, shop owners, provision store owners and market traders.</p>
+<p>Many traders lose money because they write sales on paper. LUXORA solves it.</p>
+<p><b>What Luxora Does:</b></p>
+<p>
+- Record daily sales with customer name<br>
+- Track who is owing you (Debtors auto)<br>
+- Manage Inventory - 48 items support<br>
+- Barcode Scanner with beep sound<br>
+- Records filter - Today, Yesterday, This Week, This Month, This Year, All Time<br>
+- Know your profit and debt daily
+</p>
+<p><b>How it helps society:</b></p>
+<p>
+- No more paper loss<br>
+- Helps traders grow business<br>
+- Works on phone, no laptop needed<br>
+- Each business has private account
+</p>
+<div style="margin-top:10px;background:#22224d;padding:12px;border-radius:8px;text-align:center">
+© 2026 LUXORA<br>
+Created &amp; Hosted by Gideon Uvomata<br>
+All Rights Reserved
+</div>
+</div>
+</div>
+<div id="pg-admin" class="hidden">
+<div class="card">
+<h2>ADMIN DASHBOARD - Only You</h2>
+<p>All Shops From Everywhere - All Sales - No Lock</p>
+<div id="adminList">Loading users...</div>
+</div>
+</div>
+</div>
+<script>
+var supa=window.supabase.createClient("https://gufkskfnkdbistagitzt.supabase.co","sb_publishable_f6s4qCXq8_9nR4aGP37Zlg_LQfTUskC");
+var ADMIN_EMAIL="gideonhart20@gmail.com";
+var myShop=null;
+var scanner=null;
+var recFilter="all";
+function $(id){return document.getElementById(id);}
+function toast(t){
+var el=$("toast");
+el.textContent=t;
+el.style.display="block";
+setTimeout(function(){el.style.display="none";},4000);
+}
+function eye(id,el){
+var f=document.getElementById(id);
+if(!f){return;}
+if(f.type=="password"){f.type="text";el.textContent="🙈";}
+else{f.type="password";el.textContent="👁️";}
+}
+function togMenu(){$("menu").classList.toggle("open");}
+function showLogin(){$("signBox").classList.add("hidden");$("loginBox").classList.remove("hidden");}
+function showSignup(){$("loginBox").classList.add("hidden");$("signBox").classList.remove("hidden");}
+function go(pg){
+var pages=["dash","sales","rec","inv","debt","scan","shop","guide","about","admin"];
+for(var i=0;i<pages.length;i++){$("pg-"+pages[i]).classList.add("hidden");}
+$("pg-"+pg).classList.remove("hidden");
+if(pg=="dash"){renderDash();}
+if(pg=="rec"){renderRec();}
+if(pg=="inv"){renderInv();}
+if(pg=="debt"){renderDebts();}
+if(pg=="admin"){renderAdmin();}
+}
+function cleanPhone(ph){
+var clean=String(ph||"").replace(/[^0-9]/g,"");
+if(clean.charAt(0)=="0"){clean="234"+clean.slice(1);}
+return clean;
+}
+function openWhatsApp(phone,msg){
+var clean=cleanPhone(phone);
+if(!clean){toast("No WhatsApp number for this person");return;}
+var url="https://wa.me/"+clean+"?text="+encodeURIComponent(msg);
+try{
+var w=window.open(url,"_blank");
+if(!w){
+navigator.clipboard.writeText(msg);
+toast("Acode blocked WhatsApp. Message Copied - Paste it in WhatsApp");
+}
+}catch(e){
+navigator.clipboard.writeText(msg);
+toast("Message Copied - Paste it in WhatsApp. Acode cannot open whatsapp://");
+}
+}
+async function testConnection(){
+try{
+var r=await fetch("https://gufkskfnkdbistagitzt.supabase.co/auth/v1/health");
+return "Health status: "+r.status;
+}catch(e){return "Cannot reach Supabase: "+e.message;}
+}
+async function doSignup(){
+var n=$("suName").value.trim();
+var e=$("suEmail").value.trim();
+var p=$("suPass").value;
+var p2=$("suPass2").value;
+$("msgBox").textContent="";
+if(!n||!e||!p||!p2){$("msgBox").textContent="Fill all 4 boxes";return;}
+if(p!==p2){$("msgBox").textContent="Passwords do not match";return;}
+if(p.length<6){$("msgBox").textContent="Password should be at least 6 characters";return;}
+$("msgBox").textContent="Checking connection...";
+var check=await testConnection();
+if(check.indexOf("Cannot reach")!==-1){$("msgBox").textContent=check;return;}
+$("msgBox").textContent="Creating account... please wait";
+try{
+var res=await supa.auth.signUp({email:e,password:p});
+if(res.error){
+if(res.error.message.toLowerCase().indexOf("database error")!==-1){
+$("msgBox").textContent="Database error saving new user - Run the DROP TRIGGER SQL in Supabase, then try again. Trigger is still on auth.users.";
+}else{$("msgBox").textContent=res.error.message;}
+return;
+}
+var ins=await supa.from("shops").insert([{owner_name:n,email:e,shop_name:n+" Shop",plan:"free",is_paid:true}]);
+if(ins.error){$("msgBox").textContent="Account created. Tap Login. Shop note: "+ins.error.message;}
+else{$("msgBox").textContent="Account Created! Tap Login below";}
+showLogin();
+}catch(err){$("msgBox").textContent="Failed: "+err.message;}
+}
+async function doLogin(){
+var e=$("liEmail").value.trim();
+var p=$("liPass").value;
+$("loginMsg").textContent="";
+if(!e||!p){$("loginMsg").textContent="Fill Email and Password";return;}
+$("loginMsg").textContent="Checking connection...";
+var check=await testConnection();
+if(check.indexOf("Cannot reach")!==-1){$("loginMsg").textContent=check;return;}
+$("loginMsg").textContent="Logging in... please wait";
+try{
+var res=await supa.auth.signInWithPassword({email:e,password:p});
+if(res.error){$("loginMsg").textContent=res.error.message;return;}
+await loadShop(e);
+}catch(err){$("loginMsg").textContent="Failed: "+err.message;}
+}
+async function loadShop(email){
+var res=await supa.from("shops").select("*").eq("email",email).order("created_at",{ascending:false}).limit(1);
+if(res.data && res.data[0]){myShop=res.data[0];}
+else{myShop={id:"00000000-0000-0000-0000-000000000000",email:email,shop_name:"My Shop"};}
+localStorage.setItem("luxora_shop",JSON.stringify(myShop));
+enterApp();
+}
+function enterApp(){
+$("auth").classList.add("hidden");
+$("app").classList.remove("hidden");
+$("topbar").classList.remove("hidden");
+$("topName").textContent="Welcome "+(myShop.owner_name||myShop.shop_name||"");
+if(myShop.email && myShop.email.toLowerCase()==ADMIN_EMAIL.toLowerCase()){$("adminMenu").classList.remove("hidden");}
+go("dash");
+}
+async function logout(){
+try{await supa.auth.signOut();}catch(e){}
+localStorage.removeItem("luxora_shop");
+myShop=null;
+$("app").classList.add("hidden");
+$("topbar").classList.add("hidden");
+$("auth").classList.remove("hidden");
+$("adminMenu").classList.add("hidden");
+showSignup();
+toast("Logged out");
+}
+async function doSale(){
+var prod=$("sProduct").value.trim();
+var amt=Number($("sAmount").value);
+var cust=$("sCustomer").value.trim();
+var ph=$("sPhone").value.trim();
+var meth=$("sMethod").value;
+var prof=Number($("sProfit").value||0);
+if(!prod||!amt){toast("Enter Product and Amount");return;}
+var res=await supa.from("sales").insert([{shop_id:myShop.id,product:prod,amount:amt,profit:prof,customer_name:cust,customer_phone:ph,pay_method:meth}]);
+if(res.error){toast("Sale Error: "+res.error.message);return;}
+if(meth=="Debt"){
+await supa.from("debts").insert([{shop_id:myShop.id,owner_email:myShop.email,customer_name:cust||"Customer",customer_phone:ph,product:prod,amount:amt,is_paid:false}]);
+toast("Sale + Debt Saved - Check Debtors");
+}else{toast("Sale Saved");}
+var msg="Receipt from "+(myShop.shop_name||"LUXORA")+": "+prod+" - ₦"+amt+" - Thank you!";
+$("lastReceipt").textContent=msg;
+window.lastPhone=ph;
+window.lastMsg=msg;
+$("receiptBox").scrollIntoView({behavior:"smooth"});
+$("sProduct").value="";$("sAmount").value="";$("sCustomer").value="";$("sPhone").value="";$("sProfit").value="";
+renderDash();
+}
+function sendReceipt(){
+if(!window.lastPhone){toast("Enter Customer WhatsApp first");return;}
+openWhatsApp(window.lastPhone,window.lastMsg||$("lastReceipt").textContent);
+}
+function copyReceipt(){
+var t=$("lastReceipt").textContent;
+navigator.clipboard.writeText(t);
+toast("Receipt Copied");
+}
+function copySummary(){
+var t="Today Sales: "+$("dSales").textContent+" | Today Profit: "+$("dProfit").textContent+" | Stock: "+$("dStock").textContent;
+navigator.clipboard.writeText(t);
+toast("Summary Copied");
+}
+function daysAgo(d){if(!d){return 0;}return Math.floor((Date.now()-new Date(d).getTime())/86400000);}
+function setRecFilter(f){
+recFilter=f;
+var ids={all:"fAll",today:"fToday",yesterday:"fYesterday",week:"fWeek",month:"fMonth",year:"fYear"};
+for(var k in ids){$(ids[k]).classList.remove("active");}
+$(ids[f]).classList.add("active");
+renderRec();
+}
+async function renderDash(){
+if(!myShop){return;}
+var res=await supa.from("sales").select("*").eq("shop_id",myShop.id).order("created_at",{ascending:false});
+var data=res.data||[];
+var today=new Date().toISOString().slice(0,10);
+var ts=0;var tp=0;
+for(var i=0;i<data.length;i++){if(data[i].created_at && data[i].created_at.slice(0,10)==today){ts+=Number(data[i].amount||0);tp+=Number(data[i].profit||0);}}
+$("dSales").textContent="₦"+ts.toLocaleString();
+$("dProfit").textContent="₦"+tp.toLocaleString();
+var inv=await supa.from("inventory").select("*").eq("shop_id",myShop.id);
+$("dStock").textContent=(inv.data||[]).length+" items";
+var html="";
+for(var k=0;k<data.length && k<5;k++){html+="<div>"+data[k].product+" - ₦"+Number(data[k].amount).toLocaleString()+" - "+(data[k].customer_name||"")+"</div>";}
+if(!html){html="No sales yet";}
+$("dashSales").innerHTML=html;
+var db=await supa.from("debts").select("*").eq("shop_id",myShop.id).eq("is_paid",false);
+var dh="";
+for(var d=0;d<(db.data||[]).length;d++){dh+="<div>"+db.data[d].customer_name+" - ₦"+Number(db.data[d].amount).toLocaleString()+" - Owing for "+daysAgo(db.data[d].created_at)+" days</div>";}
+if(!dh){dh="No debt - Good!";}
+$("dashDebts").innerHTML=dh;
+}
+async function renderRec(){
+var res=await supa.from("sales").select("*").eq("shop_id",myShop.id).order("created_at",{ascending:false});
+var all=res.data||[];
+var now=new Date();var todayStr=now.toISOString().slice(0,10);
+var yest=new Date(Date.now()-86400000).toISOString().slice(0,10);
+var weekStart=new Date();weekStart.setDate(now.getDate()-now.getDay());weekStart.setHours(0,0,0,0);
+var monthStr=now.toISOString().slice(0,7);
+var yearStr=now.toISOString().slice(0,4);
+var list=[];
+for(var i=0;i<all.length;i++){
+var dStr=all[i].created_at?all[i].created_at.slice(0,10):"";
+if(recFilter=="today" && dStr!==todayStr){continue;}
+if(recFilter=="yesterday" && dStr!==yest){continue;}
+if(recFilter=="week" && new Date(all[i].created_at)<weekStart){continue;}
+if(recFilter=="month" && dStr.slice(0,7)!==monthStr){continue;}
+if(recFilter=="year" && dStr.slice(0,4)!==yearStr){continue;}
+list.push(all[i]);
+}
+var total=0;var html="";
+for(var j=0;j<list.length;j++){total+=Number(list[j].amount||0);html+="<div style='padding:8px 0;border-bottom:1px solid #222'><b>"+list[j].product+"</b> - ₦"+Number(list[j].amount).toLocaleString()+"<br><small>"+(list[j].customer_name||"")+" • "+(list[j].pay_method||"")+" • Profit ₦"+Number(list[j].profit||0).toLocaleString()+" • "+(list[j].created_at?list[j].created_at.slice(0,10):"")+"</small></div>";}
+if(!html){html="No records for this filter";}
+var label=recFilter=="all"?"All Time":recFilter=="today"?"Today":recFilter=="yesterday"?"Yesterday":recFilter=="week"?"This Week":recFilter=="month"?"This Month":"This Year";
+$("recList").innerHTML="<p><b>"+label+": ₦"+total.toLocaleString()+" • "+list.length+" sales</b></p>"+html;
+}
+async function addInv(){
+var n=$("iName").value.trim();
+var cost=Number($("iCost").value);
+var sell=Number($("iSell").value);
+var q=Number($("iQty").value);
+var bc=$("iBarcode").value.trim();
+if(!n||!cost||!sell){toast("Enter Product, Cost and Sell");return;}
+var res=await supa.from("inventory").insert([{shop_id:myShop.id,name:n,cost_price:cost,selling_price:sell,price:sell,qty:q||1,barcode:bc}]);
+if(res.error){toast(res.error.message);return;}
+toast("Added - Profit per item: ₦"+(sell-cost));
+renderInv();
+$("iName").value="";$("iCost").value="";$("iSell").value="";$("iQty").value="";$("iBarcode").value="";
+}
+async function renderInv(){
+var res=await supa.from("inventory").select("*").eq("shop_id",myShop.id).order("created_at",{ascending:false});
+var list=res.data||[];
+var html="";
+for(var i=0;i<list.length;i++){
+var it=list[i];
+var cp=Number(it.cost_price||0);
+var sp=Number(it.selling_price||it.price||0);
+var low="";
+if(Number(it.qty||0)<=2){low="<br><b style='color:#ff5555'>LOW STOCK</b>";}
+html+="<div style='display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid #222'><span><b>"+it.name+"</b><br><small>Cost ₦"+cp.toLocaleString()+" • Sell ₦"+sp.toLocaleString()+" • Profit ₦"+(sp-cp).toLocaleString()+" • QTY "+it.qty+low+"</small></span><span><button class='small' onclick=\"sellInv('"+it.name+"',"+sp+","+(sp-cp)+")\">Sell</button> <button class='small' style='background:#333;color:#fff' onclick=\"delInv('"+it.id+"')\">Del</button></span></div>";
+}
+if(!html){html="No items yet";}
+$("invList").innerHTML=html;
+}
+function sellInv(n,p,prof){
+$("sProduct").value=n;$("sAmount").value=p;$("sProfit").value=prof;
+$("sCustomer").value="";$("sPhone").value="";
+$("sCustomer").setAttribute("autocomplete","off");
+$("sPhone").setAttribute("autocomplete","off");
+go("sales");
+}
+async function delInv(id){await supa.from("inventory").delete().eq("id",id);renderInv();}
+async function renderDebts(){
+var res=await supa.from("debts").select("*").eq("shop_id",myShop.id).eq("is_paid",false).order("created_at",{ascending:false});
+var list=res.data||[];
+var html="";
+for(var i=0;i<list.length;i++){
+var d=list[i];
+var msg="Hello "+d.customer_name+", this is "+(myShop.shop_name||"LUXORA")+". You are owing ₦"+Number(d.amount).toLocaleString()+" for "+d.product+". Please remember to pay. Thank you!";
+html+="<div style='padding:12px 0;border-bottom:1px solid #222'><b>"+d.customer_name+"</b> - ₦"+Number(d.amount).toLocaleString()+" - "+d.product+"<br><small>"+(d.customer_phone||"No number")+" • Owing for "+daysAgo(d.created_at)+" days</small><br><textarea id='dm"+i+"' rows='2'>"+msg+"</textarea><br><button class='green' onclick=\"sendDebt("+i+",'"+(d.customer_phone||"")+"')\">Send This Message</button> <button class='small' onclick=\"payDebt('"+d.id+"')\">Mark Paid</button></div>";
+}
+if(!html){html="No debts";}
+$("debtList").innerHTML=html;
+}
+function sendDebt(i,phone){
+var msg=$("dm"+i).value;
+openWhatsApp(phone,msg);
+}
+async function payDebt(id){await supa.from("debts").update({is_paid:true}).eq("id",id);renderDebts();renderDash();}
+async function saveShop(){
+var n=$("shName").value.trim();
+var ph=$("shPhone").value.trim();
+var ad=$("shAddr").value.trim();
+if(!n){toast("Enter Shop Name");return;}
+var res=await supa.from("shops").update({shop_name:n,shop_phone:ph,shop_address:ad}).eq("id",myShop.id);
+if(res.error){toast(res.error.message);return;}
+myShop.shop_name=n;
+toast("Shop Saved - Receipt will now come from "+n);
+}
+function testShop(){
+var s="TEST RESULT:\nToday Sales: "+$("dSales").textContent+"\nToday Profit: "+$("dProfit").textContent+"\nStock: "+$("dStock").textContent+"\nIf these change after a sale, automation is WORKING.";
+$("testResult").innerHTML="<pre style='background:#000;padding:10px;border-radius:8px;white-space:pre-wrap'>"+s+"</pre>";
+toast("Automation Test Done");
+}
+async function renderAdmin(){
+var shops=await supa.from("shops").select("*").order("created_at",{ascending:false});
+var sales=await supa.from("sales").select("shop_id,amount");
+var html="";
+for(var i=0;i<(shops.data||[]).length;i++){
+var s=shops.data[i];
+var total=0;
+for(var j=0;j<(sales.data||[]).length;j++){if(sales.data[j].shop_id==s.id){total+=Number(sales.data[j].amount||0);}}
+html+="<div style='padding:12px 0;border-bottom:1px solid #333'><b>"+(s.owner_name||"")+"</b> - "+(s.email||"")+"<br><small>Shop: "+(s.shop_name||"")+" • Phone: "+(s.shop_phone||"")+"<br>Total Sales: ₦"+total.toLocaleString()+" • Plan: Free</small></div>";
+}
+if(!html){html="No users yet";}
+$("adminList").innerHTML=html;
+}
+async function startScan(){
+try{
+scanner=new Html5Qrcode("reader");
+await scanner.start({facingMode:"environment"},{fps:10,qrbox:250},function(txt){
+$("scanResult").textContent="Scanned: "+txt;
+$("scanHint").innerHTML="<button onclick=\"useScanned()\">Use This Code In Inventory</button>";
+window.lastScan=txt;
+},function(){});
+}catch(e){toast("Allow camera permission");}
+}
+async function stopScan(){if(scanner){await scanner.stop();scanner=null;toast("Scanner Stopped");}}
+function useScanned(){if(window.lastScan){$("iBarcode").value=window.lastScan;go("inv");toast("Barcode put in Inventory");}}
+window.onload=async function(){
+try{
+var sess=await supa.auth.getSession();
+if(sess.data.session){
+var email=sess.data.session.user.email;
+await loadShop(email);
+}
+}catch(e){}
+};
+</script>
+</body>
+</html>
