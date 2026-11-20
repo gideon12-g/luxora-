@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>LUXORA</title>
+  <link rel="manifest" href="manifest.json">
 <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <style>
@@ -529,5 +530,40 @@ await loadShop(email);
 }catch(e){}
 };
 </script>
+  <script>
+// LUXORA BEEP ONCE ONLY - NEVER REPEATS
+let lastBeepedCode = "";
+function playBeepOnce(){
+  try{
+    let ctx = new (window.AudioContext || window.webkitAudioContext)();
+    let o = ctx.createOscillator();
+    let g = ctx.createGain();
+    o.connect(g); g.connect(ctx.destination);
+    o.frequency.value = 880;
+    o.type = "sine";
+    g.gain.setValueAtTime(0.2, ctx.currentTime);
+    o.start();
+    o.stop(ctx.currentTime + 0.15);
+  }catch(e){}
+}
+// When you press START SCANNER, allow beep again for a new scan
+document.addEventListener("click", function(e){
+  if(e.target && e.target.innerText && e.target.innerText.includes("START SCANNER")){
+    lastBeepedCode = "";
+  }
+});
+// Watch for a NEW scanned code, beep once only
+setInterval(function(){
+  let text = document.body.innerText || "";
+  let m = text.match(/Scanned:\s*([0-9]+)/);
+  if(m){
+    let code = m[1];
+    if(code !== lastBeepedCode){
+      lastBeepedCode = code;
+      playBeepOnce();
+    }
+  }
+}, 500);
+  </script>
 </body>
 </html>
